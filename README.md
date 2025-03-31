@@ -72,7 +72,7 @@ The script supports multiple commands:
 
 ## Commands
 
-### from-flows-file <flows.json>
+#### from-flows-file <flows.json>
 Extracts subflows from a Node-RED flows.json file, processes them, and creates the npm module structure.
 
 Prompts for username, package name, category, subflow format, and version.
@@ -82,7 +82,7 @@ You can provide absolut paths here.
  ``` 
  ./node-red-subflow-packager.sh from-flows-file ~/flows.json
  ```
-### from-folder <folder>
+#### from-folder <folder>
 Processes pre-extracted subflow JSON files from a folder into an npm module.
 
 Example:
@@ -91,7 +91,7 @@ You can provide absolut paths here.
  ./node-red-subflow-packager.sh from-folder ~/subflows
  ```
 
-### pack
+#### pack
 Packages the module into a .tgz file.
 
 Example:
@@ -99,14 +99,14 @@ You need to navigate to the directory and invoke the script.
  ```
  ./node-red-subflow-packager.sh pack
  ```
-### publish (untested)
+#### publish (untested)
 Publishes the package to npm (increments patch version).
 
 Example:
  ```
  ./node-red-subflow-packager.sh publish
  ```
-### update (untested)
+#### update (untested)
 Deploys the package to remote Node-RED controllers (edit CONTROLLERS array in script).
 
 Example:
@@ -148,14 +148,14 @@ Publishes to npm as @yourname/node-red-contrib-myflow.
 
 ## How It Works
 
-### from-flows-file
+#### from-flows-file
 Extracts subflows from a flows.json file into temporary files.
 
 Processes them into the target directory with proper IDs and structure.
 
 Generates package.json and subflows.js for Node-RED compatibility.
 
-### from-folder
+#### from-folder
 Takes existing subflow JSONs, ensures unique IDs from file name, and organizes them.
 
 Supports combining into one file or keeping separate files.
