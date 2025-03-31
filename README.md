@@ -34,9 +34,9 @@ Simply export the entire tab/workspace as a flows.json (you can name it what you
 5. Create a folder structure, package.json, and a subflows.js to read and wrap the subflows.
 
 Then use the pack command and others to
-7. Create a .tgz archive for distribution.
-8. Publish to npm. (not tested)
-9. Manual update to Node-Red. (Automatic update not tested)
+- Create a .tgz archive for distribution.
+- Publish to npm. (not tested)
+- Manually update to Node-Red. (Automatic update not tested)
 
 ### Features
 
@@ -78,6 +78,7 @@ Extracts subflows from a Node-RED flows.json file, processes them, and creates t
 Prompts for username, package name, category, subflow format, and version.
 
 Example:
+You can provide absolut paths here.
  ``` 
  ./node-red-subflow-packager.sh from-flows-file ~/flows.json
  ```
@@ -85,6 +86,7 @@ Example:
 Processes pre-extracted subflow JSON files from a folder into an npm module.
 
 Example:
+You can provide absolut paths here.
  ```
  ./node-red-subflow-packager.sh from-folder ~/subflows
  ```
@@ -93,6 +95,7 @@ Example:
 Packages the module into a .tgz file.
 
 Example:
+You need to navigate to the directory and invoke the script.
  ```
  ./node-red-subflow-packager.sh pack
  ```
@@ -114,11 +117,11 @@ Example:
 ## Example Workflow
 
 ### Export
-Export a tab/workspace to the local file system from within Node-Red. (/home/<user>/.node-red/lib/flows/MyDevelopmentTab/flows.json)
+Export a tab/workspace to the local file system from within Node-Red. (/home/youruser/.node-red/lib/flows/MyDevelopmentTab/flows.json)
 
 ### Create a Package
 ```
-/home/<user>/scripts/node-red-subflow-packager.sh from-flows-file /home/<user>/.node-red/lib/flows/MyDevelopmentTab/flows.json
+/home/youruser/scripts/node-red-subflow-packager.sh from-flows-file /home/youruser/.node-red/lib/flows/MyDevelopmentTab/flows.json
 ```
 
 Answer prompts (e.g., yourname, node-red-contrib-myflow, control, 2, 1.0.0).
@@ -128,7 +131,7 @@ Outputs to ~/@yourname/node-red-contrib-myflow.
 ### Package It
 Navigate to the directory that was created then,
  ```
- /home/<user>/scripts/node-red-subflow-packager.sh pack
+ /home/youruser/scripts/node-red-subflow-packager.sh pack
  ```
 Creates node-red-contrib-myflow-1.0.0.tgz.
 
@@ -139,7 +142,7 @@ Go back to Node-Red > Top Right Hamburger Menu > Manage Palette > Click on the I
 ### Publish (Optional)
  ```
  npm login
- /home/<user>/scripts/node-red-subflow-packager.sh publish
+ /home/youruser/scripts/node-red-subflow-packager.sh publish
  ```
 Publishes to npm as @yourname/node-red-contrib-myflow.
 
