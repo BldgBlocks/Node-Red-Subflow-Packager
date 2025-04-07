@@ -46,30 +46,24 @@ prompt_package_details() {
         echo "Username is required for scoped packages."
         exit 1
     fi
-    read -p "Enter package name (e.g., node-red-contrib-compressor-sequencer): " PACKAGE_NAME
+    read -p "Enter package name (e.g., node-red-contrib-custom-control): " PACKAGE_NAME
     if [[ -z "$PACKAGE_NAME" ]]; then
-        PACKAGE_NAME="node-red-contrib-custom-subflows"
+        PACKAGE_NAME="node-red-contrib-custom-control"
         echo "Using default package name: $PACKAGE_NAME"
     fi
     MODULE_NAME="@$USERNAME/$PACKAGE_NAME"
     OUTPUT_DIR="$HOME/@${USERNAME}/${PACKAGE_NAME}"
-    read -p "Enter the category for the subflow (e.g., subflows, control, custom): " SUBFLOW_CATEGORY
+    read -p "Enter the category for the subflows (e.g., subflows, control, custom): " SUBFLOW_CATEGORY
     if [[ -z "$SUBFLOW_CATEGORY" ]]; then
-        SUBFLOW_CATEGORY="subflows"
+        SUBFLOW_CATEGORY="control"
         echo "Using default category: $SUBFLOW_CATEGORY"
     fi
 }
 
-# Prompt user for subflow representation
+# Prompt user for subflow representation (keeping for compatibility, but we'll override)
 prompt_subflow_format() {
-    echo "How to represent subflows?"
-    echo "1) One file with all subflows"
-    echo "2) One file per subflow"
-    read -p "Choose (1 or 2): " SUBFLOW_FORMAT
-    if [[ "$SUBFLOW_FORMAT" != "1" && "$SUBFLOW_FORMAT" != "2" ]]; then
-        SUBFLOW_FORMAT=1
-        echo "Invalid choice, defaulting to one file (1)"
-    fi
+    echo "Note: This script now uses one .js file per subflow, packaged in a single archive."
+    SUBFLOW_FORMAT=2  # Force multi-file style internally, but we'll adapt
 }
 
 # Prompt user for version
@@ -99,7 +93,7 @@ from_folder() {
 
     echo "Processing subflows from $INPUT_FOLDER..."
     echo "Output directory set to: $OUTPUT_DIR"
-    mkdir -p "$OUTPUT_DIR/subflows"
+    mkdir -p "$OUTPUT_DIR"
 
     SUBFLOW_FILES=$(find "$INPUT_FOLDER" -maxdepth 1 -name "*.json")
     if [ -z "$SUBFLOW_FILES" ]; then
@@ -108,64 +102,70 @@ from_folder() {
     fi
 
     VALID_FILES=0
-    if [[ "$SUBFLOW_FORMAT" == "1" ]]; then
-        SUBFLOW_FILE="$OUTPUT_DIR/subflows/subflows.json"
-        cat /dev/null > "$SUBFLOW_FILE"
-        for file in $SUBFLOW_FILES; do
-            ORIGINAL_NAME=$(basename "$file" .json)
-            if ! jq -e . "$file" >/dev/null 2>&1; then
-                echo "Warning: Skipping invalid JSON file: $file"
-                continue
-            fi
-            jq -r --arg name "$ORIGINAL_NAME" --arg category "$SUBFLOW_CATEGORY" '
-                . as $subflow |
-                if $subflow.type == "subflow" then
-                    {id: (if ($subflow.id | contains("-")) then $subflow.id else ($name + "-" + $subflow.id) end),
-                     type: $subflow.type, name: $name, info: ($subflow.info // ""), category: $category, in: $subflow.in, out: $subflow.out, flow: $subflow.flow}
-                else
-                    empty
-                end
-            ' "$file" >> "$SUBFLOW_FILE.temp"
-            ((VALID_FILES++))
-        done
-        if [ "$VALID_FILES" -eq 0 ]; then
-            echo "Error: No valid subflow JSON files found."
-            exit 1
+    NODE_ENTRIES=""
+    for file in $SUBFLOW_FILES; do
+        ORIGINAL_NAME=$(basename "$file" .json | tr '[:upper:]' '[:lower:]')  # Lowercase for consistency
+        SUBFLOW_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.json"
+        JS_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.js"
+        if ! jq -e . "$file" >/dev/null 2>&1; then
+            echo "Warning: Skipping invalid JSON file: $file"
+            continue
         fi
-        jq -s 'flatten' "$SUBFLOW_FILE.temp" > "$SUBFLOW_FILE"
-        rm "$SUBFLOW_FILE.temp"
-        echo "Combined $VALID_FILES subflows into $SUBFLOW_FILE"
-    else
-        for file in $SUBFLOW_FILES; do
-            ORIGINAL_NAME=$(basename "$file" .json)
-            SUBFLOW_FILE="$OUTPUT_DIR/subflows/${ORIGINAL_NAME}.json"
-            if ! jq -e . "$file" >/dev/null 2>&1; then
-                echo "Warning: Skipping invalid JSON file: $file"
-                continue
-            fi
-            jq -r --arg name "$ORIGINAL_NAME" --arg category "$SUBFLOW_CATEGORY" '
-                . as $subflow |
-                if $subflow.type == "subflow" then
-                    {id: (if ($subflow.id | contains("-")) then $subflow.id else ($name + "-" + $subflow.id) end),
-                     type: $subflow.type, name: $name, info: ($subflow.info // ""), category: $category, in: $subflow.in, out: $subflow.out, flow: $subflow.flow}
-                else
-                    empty
-                end
-            ' "$file" > "$file.temp"
-            if [ ! -s "$file.temp" ] || ! jq -e . "$file.temp" >/dev/null 2>&1; then
-                echo "Warning: Failed to process subflow in $file - output is empty or invalid"
-                rm "$file.temp"
-                continue
-            fi
-            mv "$file.temp" "$SUBFLOW_FILE"
-            echo "Processed $ORIGINAL_NAME to $SUBFLOW_FILE"
-            ((VALID_FILES++))
-        done
-        if [ "$VALID_FILES" -eq 0 ]; then
-            echo "Error: No valid subflow JSON files found."
-            exit 1
+        jq -r --arg name "$ORIGINAL_NAME" --arg category "$SUBFLOW_CATEGORY" '
+            . as $subflow |
+            if $subflow.type == "subflow" then
+                {id: (if ($subflow.id | contains("-")) then $subflow.id else ($name + "-" + $subflow.id) end),
+                 type: $subflow.type, name: $name, info: ($subflow.info // ""), category: $category, in: $subflow.in, out: $subflow.out, flow: $subflow.flow}
+            else
+                empty
+            end
+        ' "$file" > "$SUBFLOW_FILE"
+        if [ ! -s "$SUBFLOW_FILE" ] || ! jq -e . "$SUBFLOW_FILE" >/dev/null 2>&1; then
+            echo "Warning: Failed to process subflow in $file - output is empty or invalid"
+            rm "$SUBFLOW_FILE"
+            continue
         fi
+
+        # Create .js file for this subflow
+        cat > "$JS_FILE" <<EOF
+const fs = require('fs');
+const path = require('path');
+
+module.exports = function(RED) {
+    const subflowFile = path.join(__dirname, '${ORIGINAL_NAME}.json');
+    const subflowContents = fs.readFileSync(subflowFile, 'utf8');
+    const subflowJSON = JSON.parse(subflowContents);
+    RED.nodes.registerSubflow(subflowJSON);
+};
+EOF
+
+        echo "Processed $ORIGINAL_NAME to $SUBFLOW_FILE and $JS_FILE"
+        NODE_ENTRIES="$NODE_ENTRIES\"$ORIGINAL_NAME\": \"${ORIGINAL_NAME}.js\","
+        ((VALID_FILES++))
+    done
+
+    if [ "$VALID_FILES" -eq 0 ]; then
+        echo "Error: No valid subflow JSON files found."
+        exit 1
     fi
+
+    # Create package.json with all nodes
+    NODE_ENTRIES=${NODE_ENTRIES%,}  # Remove trailing comma
+    cat > "$OUTPUT_DIR/package.json" <<EOF
+{
+  "name": "$MODULE_NAME",
+  "version": "$VERSION",
+  "description": "Custom subflows packaged for Node-RED",
+  "keywords": ["node-red", "custom", "control"],
+  "node-red": {
+    "version": ">=1.3.0",
+    "nodes": { $NODE_ENTRIES }
+  },
+  "author": "$USERNAME",
+  "license": "MIT"
+}
+EOF
+
     save_config
     echo "Next step: ./$(basename $0) pack"
 }
@@ -185,7 +185,6 @@ from_flows_file() {
     echo "Processing subflows from $FLOWS_FILE..."
     mkdir -p "$TEMP_DIR"
 
-    # Extract subflows and save as individual files
     SUBFLOW_COUNT=$(jq -r '[.[] | select(.type == "subflow")] | length' "$FLOWS_FILE")
     if [ "$SUBFLOW_COUNT" -eq 0 ]; then
         echo "No subflows found in $FLOWS_FILE."
@@ -195,11 +194,10 @@ from_flows_file() {
 
     echo "Found $SUBFLOW_COUNT subflows. Extracting..."
     jq -r '.[] | select(.type == "subflow") | .name' "$FLOWS_FILE" | sort -u | while read -r subflow_name; do
-        SAFE_NAME=$(echo "$subflow_name" | tr -dc '[:alnum:]-_' | tr ' ' '-')
+        SAFE_NAME=$(echo "$subflow_name" | tr -dc '[:alnum:]-_' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
         OUTPUT_FILE="$TEMP_DIR/${SAFE_NAME}.json"
         jq -r --arg name "$subflow_name" --arg category "$SUBFLOW_CATEGORY" --arg fname "$SAFE_NAME" '
             [.[] | select(.type == "subflow" and .name == $name)][0] as $subflow |
-            # Take the first instance info only
             [(.[] | select(.type == ("subflow:" + $subflow.id)) | .info? // empty)][0] as $instance_info |
             if $subflow then
                 {
@@ -210,7 +208,7 @@ from_flows_file() {
                     category: $category,
                     in: $subflow.in,
                     out: $subflow.out,
-                    flow: [.[] | select(.z? == $subflow.id)]
+                    flow: [.[] | select(.z? == $subflow.id)]  # Collect all nodes in one array
                 }
             else
                 empty
@@ -224,58 +222,59 @@ from_flows_file() {
         fi
     done
 
-    # Process extracted files with from_folder and create module structure
     if [ -n "$(ls -A "$TEMP_DIR")" ]; then
-        from_folder "" "$TEMP_DIR"
         echo "Creating npm module structure in $OUTPUT_DIR..."
-        cd "$OUTPUT_DIR" || exit 1
+        mkdir -p "$OUTPUT_DIR"
+        NODE_ENTRIES=""
+        VALID_FILES=0
 
-        cat > package.json <<EOF
+        for file in "$TEMP_DIR"/*.json; do
+            if [ ! -f "$file" ]; then continue; fi
+            ORIGINAL_NAME=$(basename "$file" .json)
+            SUBFLOW_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.json"
+            JS_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.js"
+            mv "$file" "$SUBFLOW_FILE"
+            
+            cat > "$JS_FILE" <<EOF
+const fs = require('fs');
+const path = require('path');
+
+module.exports = function(RED) {
+    const subflowFile = path.join(__dirname, '${ORIGINAL_NAME}.json');
+    const subflowContents = fs.readFileSync(subflowFile, 'utf8');
+    const subflowJSON = JSON.parse(subflowContents);
+    RED.nodes.registerSubflow(subflowJSON);
+};
+EOF
+
+            echo "Processed $ORIGINAL_NAME to $SUBFLOW_FILE and $JS_FILE"
+            NODE_ENTRIES="$NODE_ENTRIES\"$ORIGINAL_NAME\": \"${ORIGINAL_NAME}.js\","
+            ((VALID_FILES++))
+        done
+
+        if [ "$VALID_FILES" -eq 0 ]; then
+            echo "Error: No valid subflow JSON files extracted."
+            rm -rf "$TEMP_DIR"
+            exit 1
+        fi
+
+        NODE_ENTRIES=${NODE_ENTRIES%,}
+        cat > "$OUTPUT_DIR/package.json" <<EOF
 {
   "name": "$MODULE_NAME",
   "version": "$VERSION",
-  "description": "Custom subflows for Node-RED",
-  "keywords": ["node-red"],
+  "description": "Custom control subflows packaged for Node-RED",
+  "keywords": ["node-red", "custom", "control"],
   "node-red": {
     "version": ">=1.3.0",
-    "nodes": ["subflows.js"]
+    "nodes": { $NODE_ENTRIES }
   },
-  "author": "$(whoami)",
+  "author": "$USERNAME",
   "license": "MIT"
 }
 EOF
 
-        if [[ "$SUBFLOW_FORMAT" == "1" ]]; then
-            cat > subflows.js <<EOF
-module.exports = function(RED) {
-    const fs = require('fs');
-    const path = require('path');
-    const subflowFile = path.join(__dirname, 'subflows/subflows.json');
-    const subflows = JSON.parse(fs.readFileSync(subflowFile, 'utf8'));
-    subflows.forEach(subflow => RED.nodes.registerSubflow(subflow));
-};
-EOF
-        else
-            cat > subflows.js <<EOF
-module.exports = function(RED) {
-    const fs = require('fs');
-    const path = require('path');
-    const subflowDir = path.join(__dirname, 'subflows');
-    fs.readdirSync(subflowDir).forEach(file => {
-        if (file.endsWith('.json')) {
-            const subflow = JSON.parse(fs.readFileSync(path.join(subflowDir, file), 'utf8'));
-            RED.nodes.registerSubflow(subflow);
-        }
-    });
-};
-EOF
-        fi
-
-        if [ ! -d "$OUTPUT_DIR/subflows" ] || [ -z "$(ls -A "$OUTPUT_DIR/subflows")" ]; then
-            echo "Subflow directory empty. Something went wrong."
-            rm -rf "$TEMP_DIR"
-            exit 1
-        fi
+        save_config
         echo "Module structure created."
     else
         echo "No valid subflow files extracted from $FLOWS_FILE."
@@ -283,7 +282,6 @@ EOF
         exit 1
     fi
 
-    # Clean up
     rm -rf "$TEMP_DIR"
     echo "Next step: ./$(basename $0) pack"
 }
