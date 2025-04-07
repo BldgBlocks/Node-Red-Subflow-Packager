@@ -194,12 +194,13 @@ from_flows_file() {
     fi
 
     echo "Found $SUBFLOW_COUNT subflows. Extracting..."
-    jq -r '.[] | select(.type == "subflow") | .name' "$FLOWS_FILE" | while read -r subflow_name; do
+    jq -r '.[] | select(.type == "subflow") | .name' "$FLOWS_FILE" | sort -u | while read -r subflow_name; do
         SAFE_NAME=$(echo "$subflow_name" | tr -dc '[:alnum:]-_' | tr ' ' '-')
         OUTPUT_FILE="$TEMP_DIR/${SAFE_NAME}.json"
         jq -r --arg name "$subflow_name" --arg category "$SUBFLOW_CATEGORY" --arg fname "$SAFE_NAME" '
-            [.[] | select(type == "object" and .type == "subflow" and .name == $name)][0] as $subflow |
-            (.[] | select(type == "object" and .type == ("subflow:" + $subflow.id)) | .info?) as $instance_info |
+            [.[] | select(.type == "subflow" and .name == $name)][0] as $subflow |
+            # Take the first instance info only
+            [(.[] | select(.type == ("subflow:" + $subflow.id)) | .info? // empty)][0] as $instance_info |
             if $subflow then
                 {
                     id: ($fname + "-" + $subflow.id),
@@ -209,7 +210,7 @@ from_flows_file() {
                     category: $category,
                     in: $subflow.in,
                     out: $subflow.out,
-                    flow: [.[] | select(type == "object" and (.z? == $subflow.id)) | [.]]
+                    flow: [.[] | select(.z? == $subflow.id)]
                 }
             else
                 empty
@@ -292,8 +293,11 @@ pack_module() {
     load_config
     echo "Packaging module as .tgz..."
     cd "$OUTPUT_DIR" || exit 1
+    mkdir -p releases
+    mv *.tgz releases/ 2>/dev/null || true
     npm pack
     echo "Packaged: $(ls *.tgz)"
+    echo "Older versions in: $OUTPUT_DIR/releases/"
 }
 
 # Step 3: Publish to npm
