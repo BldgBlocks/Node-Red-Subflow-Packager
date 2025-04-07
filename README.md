@@ -95,7 +95,7 @@ You can provide absolut paths here.
 Packages the module into a .tgz file.
 
 Example:
-You need to navigate to the directory and invoke the script.
+File locations are stored in a config, you can run the command from where you are.
  ```
  ./node-red-subflow-packager.sh pack
  ```
@@ -129,7 +129,7 @@ Answer prompts (e.g., yourname, node-red-contrib-myflow, control, 2, 1.0.0).
 Outputs to ~/@yourname/node-red-contrib-myflow.
 
 ### Package It
-Navigate to the directory that was created then,
+File locations are stored in a config, you can run the command from where you are.
  ```
  /home/youruser/scripts/node-red-subflow-packager.sh pack
  ```

@@ -325,11 +325,13 @@ update_controllers() {
     echo "Controllers updated."
 }
 
-# Prompt for package details, subflow format, and version once at the start
+# Prompt for package details, subflow format, and version once at the start, then load config for other commands
 if [ "$1" == "from-folder" ] || [ "$1" == "from-flows-file" ]; then
     prompt_package_details
     prompt_subflow_format
     prompt_version
+else
+    load_config "$1"
 fi
 
 # Main logic
